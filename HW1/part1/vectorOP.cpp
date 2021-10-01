@@ -121,29 +121,34 @@ void clampedExpVector(float *values, int *exponents, float *output, int N)
 float arraySumVector(float *values, int N)
 {
 
-  __pp_vec_float x;
+  __pp_vec_float sum, temp;
   __pp_mask maskAll;
-  float result[VECTOR_WIDTH];
-  float output = 0.f;
+  float output[VECTOR_WIDTH];
 
   // All ones
   maskAll = _pp_init_ones();
 
-  for (int i = 0; i < N; i += VECTOR_WIDTH)
+  // Load vector of values from contiguous memory addresses
+  _pp_vload_float(sum, values, maskAll); // sum = values[i];
+
+  for (int i = VECTOR_WIDTH; i < N; i += VECTOR_WIDTH)
   {
     // Load vector of values from contiguous memory addresses
-    _pp_vload_float(x, values + i, maskAll); // x = values[i];
-    for(int j=0;j<VECTOR_WIDTH/2;j++)
-    {
-      _pp_hadd_float(x,x);
-      _pp_interleave_float(x,x);
+    _pp_vload_float(temp, values + i, maskAll); // temp = values[i];
 
-    }
-
-    // Write results back to memory
-    _pp_vstore_float(result, x, maskAll);
-    output += result[0];
+    _pp_vadd_float(sum, sum, temp, maskAll); // sum = sum + temp;
+    
   }
 
-  return output;
+  for(int j=0;j<log2(VECTOR_WIDTH);j++)
+  {
+    _pp_hadd_float(sum,sum);
+    _pp_interleave_float(sum,sum);
+
+  }
+
+  // Write results back to memory
+  _pp_vstore_float(output, sum, maskAll);
+
+  return output[0];
 }
