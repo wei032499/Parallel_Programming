@@ -78,17 +78,9 @@ void clampedExpVector(float *values, int *exponents, float *output, int N)
     _pp_vload_float(x, values + i, maskAll); // x = values[i];
     _pp_vload_int(y, exponents + i, maskAll); // y = exponents[i];
 
-    // Set mask according to predicate
-    _pp_veq_int(maskIsZero, y, zero_int, maskAll); // if (y == 0) {
+    _pp_vset_float(result, 1.f, maskAll); //   output[i] = 1.f;
 
-    // Execute instruction using mask ("if" clause)
-    _pp_vset_float(result, 1.f, maskIsZero); //   output[i] = 1.f;
-
-    // Inverse maskIsZero to generate "else" mask
-    maskIsNotZero = _pp_mask_not(maskIsZero); // } else {
-    
-    // Execute instruction ("else" clause)
-    _pp_vmove_float(result, one, maskIsNotZero); // result = 1.f;
+    _pp_vgt_int(maskIsNotZero, y, zero_int, maskAll); // if(y > 0)
 
     int count = _pp_cntbits(maskIsNotZero); // number of '1' in maskIsNotZero
 
