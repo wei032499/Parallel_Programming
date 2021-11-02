@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <thread>
 
-#include <cmath>
-
 #include "CycleTimer.h"
 
 typedef struct
@@ -11,8 +9,6 @@ typedef struct
     float y0, y1;
     unsigned int width;
     unsigned int height;
-    int startRow;
-    int numRows;
     int maxIterations;
     int *output;
     int threadId;
@@ -39,9 +35,32 @@ void workerThreadStart(WorkerArgs *const args)
     // program that uses two threads, thread 0 could compute the top
     // half of the image and thread 1 could compute the bottom half.
 
-    mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, args->width, args->height, args->startRow, args->numRows, args->maxIterations, args->output);
+    /*double startTime = CycleTimer::currentSeconds();
 
-    printf("Hello world from thread %d\n", args->threadId);
+    int numRows = args->height / args->numThreads;
+    int startRow = numRows * args->threadId;
+
+    if (args->threadId < (int)(args->height % args->numThreads))
+    {
+        numRows += 1;
+        startRow += args->threadId;
+    }
+    else
+        startRow += args->height % args->numThreads;
+
+    mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, args->width, args->height, startRow, numRows, args->maxIterations, args->output);
+
+    double endTime = CycleTimer::currentSeconds();
+
+    printf("[thread %d]:\t\t[%.3f] ms\n", args->threadId, (endTime - startTime) * 1000);*/
+
+    // printf("Hello world from thread %d\n", args->threadId);
+
+    int numRows = args->height / args->numThreads;
+    if (args->threadId < (int)(args->height % args->numThreads))
+        numRows += 1;
+    for (int i = 0; i < numRows; i++)
+        mandelbrotSerial(args->x0, args->y0, args->x1, args->y1, args->width, args->height, args->threadId + i * args->numThreads, 1, args->maxIterations, args->output);
 }
 
 //
@@ -67,8 +86,6 @@ void mandelbrotThread(
     std::thread workers[MAX_THREADS];
     WorkerArgs args[MAX_THREADS];
 
-    int lastRow = 0;
-
     for (int i = 0; i < numThreads; i++)
     {
         // TODO FOR PP STUDENTS: You may or may not wish to modify
@@ -80,10 +97,6 @@ void mandelbrotThread(
         args[i].y1 = y1;
         args[i].width = width;
         args[i].height = height;
-
-        args[i].numRows = ceil((double)(height - lastRow) / (numThreads - i));
-        args[i].startRow = lastRow;
-        lastRow = args[i].startRow + args[i].numRows;
 
         args[i].maxIterations = maxIterations;
         args[i].numThreads = numThreads;
