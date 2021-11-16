@@ -51,8 +51,6 @@ void conj_grad(int colidx[],
     // The conj grad iteration loop
     //---->
     //---------------------------------------------------------------------
-    // clang-format off
-// #pragma omp parallel for private(d, sum, rho0, alpha, beta)
     for (cgit = 1; cgit <= cgitmax; cgit++)
     {
         //---------------------------------------------------------------------
@@ -71,7 +69,6 @@ void conj_grad(int colidx[],
         for (j = 0; j < lastrow - firstrow + 1; j++)
         {
             sum = 0.0;
-                // printf("%d\n",omp_get_num_threads()); 
             for (k = rowstr[j]; k < rowstr[j + 1]; k++)
             {
                 sum = sum + a[k] * p[colidx[k]];
@@ -83,8 +80,6 @@ void conj_grad(int colidx[],
         // Obtain p.q
         //---------------------------------------------------------------------
         d = 0.0;
-        // clang-format off
-        // #pragma omp parallel for
         for (j = 0; j < lastcol - firstcol + 1; j++)
         {
             d = d + p[j] * q[j];
@@ -141,7 +136,7 @@ void conj_grad(int colidx[],
     //---------------------------------------------------------------------
     sum = 0.0;
     // clang-format off
-#pragma omp parallel for
+    // #pragma omp parallel for
     for (j = 0; j < lastrow - firstrow + 1; j++)
     {
         d = 0.0;
@@ -156,7 +151,7 @@ void conj_grad(int colidx[],
     // At this point, r contains A.z
     //---------------------------------------------------------------------
     // clang-format off
-#pragma omp parallel for reduction(+:sum)
+    // #pragma omp parallel for reduction(+:sum)
     for (j = 0; j < lastcol - firstcol + 1; j++)
     {
         d = x[j] - r[j];
@@ -599,6 +594,8 @@ void iterate(double *zeta, int *it)
     norm_temp1 = 0.0;
     norm_temp2 = 0.0;
 
+    // clang-format off
+    #pragma omp parallel for reduction(+:norm_temp1,norm_temp2)
     for (j = 0; j < lastcol - firstcol + 1; j++)
     {
         norm_temp1 = norm_temp1 + x[j] * z[j];
