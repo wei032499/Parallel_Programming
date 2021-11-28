@@ -8,4 +8,4 @@ zip: $(COPY_FILES)
 	zip HW3_310552020.zip $^
 
 clean:
-	rm $(COPY_FILES)
+	rm -f $(COPY_FILES)
