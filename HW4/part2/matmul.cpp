@@ -76,60 +76,107 @@ void matrix_multiply(const int n, const int m, const int l,
                      const int *a_mat, const int *b_mat)
 {
     int *b_mat_trans = (int *)malloc(sizeof(int) * l * m);
-    for(int i = 0 ; i < m ; i++)
-        for(int j = 0  ; j < l ; j++)
-            b_mat_trans[j * m + i] = b_mat[i * l + j];
-    
-    int *ans_local;
-    int mat_size = n * l;
-    int slice = mat_size / size;
-    int array_size = mat_size / size + 1;
-    int len = mat_size / size;
-    int start = mat_size / size * rank;
-    if(rank < mat_size % size)
-    {
-        len += 1;
-        start += rank;
-    }
-    else
-        start += mat_size % size;
-    
-    ans_local = (int *)malloc(sizeof(int) * array_size);
-    
-    memset(ans_local, 0, len*sizeof(int));
-
-    for(int i=0 ; i<len ; i++)
-    {
-        int row = (start+i) / l * m;
-        int col = ((start+i) % l) * m;
-        for(int j=0 ; j<m ; j++)
-            ans_local[i] += a_mat[row + j] * b_mat_trans[col + j];
-    }
-        
-
+    for(int i = 0 ; i < l ; i++)
+        for(int j = 0  ; j < m ; j++)
+            b_mat_trans[i * m + j] = b_mat[j * l + i];
     if(rank == 0)
     {
+        int mat_size = n * l;
 
-        int *ans_mat = (int *)malloc(sizeof(int *) * size * array_size);
+        int *recv = (int *)malloc(sizeof(int) * (size-1) * (mat_size / size + 1));
+        MPI_Request *requests = (MPI_Request *)malloc(sizeof(MPI_Request) * (size-1));
+        MPI_Status *status = (MPI_Status *)malloc(sizeof(MPI_Status) * (size-1));
+        
+        int *start = (int *)malloc(sizeof(int) * (size-1));
+        int *len = (int *)malloc(sizeof(int) * (size-1));
+        int node_rank;
 
-        MPI_Gather(ans_local, array_size, MPI_INTEGER, ans_mat, array_size, MPI_INTEGER, 0, MPI_COMM_WORLD);
-
-        for(int i=0 ; i<size ; i++)
+        for(int i=0; i<size-1 ; i++)
         {
-            int index = array_size * i;
-            for(int j=0 ; j<slice ; j++)
-                printf("%d ",ans_mat[index + j]);
+            node_rank = i+1;
+            start[i] = mat_size / size * node_rank;
+            len[i] = mat_size / size;
             if(i < mat_size % size)
-                printf("%d ",ans_mat[array_size*i + slice]);
-            printf("\n");
+            {
+                len[i] += node_rank;
+                start[i] += node_rank;
+            }
+            else
+                start[i] += mat_size % size;
+            
+            MPI_Status status;
+            MPI_Irecv(recv + i*(mat_size / size + 1), len[i], MPI_INTEGER, node_rank,TAG, MPI_COMM_WORLD, &requests[i]);
+            
         }
 
 
+        int *ans_mat = (int *)malloc(sizeof(int *) * mat_size);
+        
+        int root_len = mat_size / size;
+        if(mat_size % size)
+            root_len += 1;
+        
+        memset(ans_mat, 0, root_len*sizeof(int));
+
+        for(int i=0 ; i<root_len ; i++)
+        {
+            for(int j=0 ; j<m ; j++)
+                ans_mat[i] += a_mat[i / l * m + j] * b_mat_trans[(i % l)*m + j];
+        }
+
+
+        MPI_Waitall(size-1, requests, status);
+
+        for(int i=0; i<size-1 ; i++)
+            memcpy(ans_mat+start[i], recv + i*(n * l / size + 1), sizeof(int)*len[i]);
+        
+        free(recv);
+        free(requests);
+        free(start);
+        free(len);
+
+
+
+        for(int i=0 ; i<mat_size ; i++)
+        {
+            printf("%d ",ans_mat[i]);
+            if((i+1)%l!=0)
+                continue;
+            printf("\n");
+
+        }
+            
         free(ans_mat);
     } else
-        MPI_Gather(ans_local, array_size, MPI_INTEGER, NULL, 0, NULL, 0, MPI_COMM_WORLD);
+    {
+        int *ans_local;
+        int mat_size = n * l;
+        int len = mat_size / size;
+        int start = mat_size / size * rank;
+        if(rank < mat_size % size)
+        {
+            len += 1;
+            start += rank;
+        }
+        else
+            start += mat_size % size;
+        
+        ans_local = (int *)malloc(sizeof(int) * len);
+        
+        memset(ans_local, 0, len*sizeof(int));
 
-    free(ans_local);
+        for(int i=0 ; i<len ; i++)
+        {
+            for(int j=0 ; j<m ; j++)
+                ans_local[i] += a_mat[(start+i) / l * m + j] * b_mat_trans[((start+i) % l)*m + j];
+            
+        }
+
+
+        MPI_Send(ans_local, len, MPI_INTEGER, 0, TAG, MPI_COMM_WORLD);
+        free(ans_local);
+    }
+
     free(b_mat_trans);
 
 }
